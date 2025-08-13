@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { 
   ChevronDown, 
   ChevronRight, 
@@ -14,7 +15,7 @@ import {
 
 interface MenuItem {
   id: string;
-  label: string;
+  labelKey: string;
   icon: React.ComponentType<any>;
   children?: MenuItem[];
   path?: string;
@@ -30,77 +31,39 @@ interface SidebarProps {
   };
 }
 
-const menuItems: MenuItem[] = [
+const getMenuItems = (t: any): MenuItem[] => [
   {
     id: 'dashboard',
-    label: '대시보드',
+    labelKey: 'navigation.dashboard',
     icon: Home,
     path: '/dashboard'
   },
   {
     id: 'projects',
-    label: '프로젝트 관리',
+    labelKey: 'navigation.projects',
     icon: FolderOpen,
-    children: [
-      {
-        id: 'project-list',
-        label: '프로젝트 목록',
-        icon: FileText,
-        path: '/projects'
-      },
-      {
-        id: 'project-create',
-        label: '프로젝트 생성',
-        icon: FileText,
-        path: '/projects/create'
-      }
-    ]
+    path: '/projects'
   },
   {
     id: 'reports',
-    label: '보고서',
+    labelKey: 'navigation.projectReports',
     icon: BarChart3,
-    children: [
-      {
-        id: 'requirement-report',
-        label: '요구사항 보고서',
-        icon: FileText,
-        path: '/reports/requirements'
-      },
-      {
-        id: 'project-status',
-        label: '프로젝트 상태 보고서',
-        icon: FileText,
-        path: '/reports/status'
-      },
-      {
-        id: 'export-report',
-        label: '보고서 내보내기',
-        icon: FileText,
-        path: '/reports/export'
-      }
-    ]
+    path: '/reports'
   },
   {
     id: 'admin',
-    label: '관리자 메뉴',
+    labelKey: 'navigation.adminMenu',
     icon: Shield,
     children: [
       {
-        id: 'user-management',
-        label: '사용자 관리',
-        icon: Users,
-        path: '/admin/users'
-      },
-      {
         id: 'access-control',
-        label: '접속 권한 설정',
+        labelKey: 'navigation.userPermissionManagement',
         icon: Shield,
         path: '/admin/access'
       },
       {
         id: 'system-settings',
-        label: '시스템 설정',
+        labelKey: 'admin.systemSettings',
         icon: Settings,
         path: '/admin/settings'
       }
@@ -109,7 +72,10 @@ const menuItems: MenuItem[] = [
 ];
 
 const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, onLogout, user }) => {
+  const { t } = useTranslation();
   const [expandedItems, setExpandedItems] = useState<string[]>(['projects', 'reports']);
+  
+  const menuItems = getMenuItems(t);
 
   const toggleExpanded = (itemId: string) => {
     setExpandedItems(prev => 
@@ -151,7 +117,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, onLogout, us
         >
           <div className="flex items-center">
             <item.icon className={`mr-3 h-5 w-5 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
-            <span>{item.label}</span>
+            <span>{t(item.labelKey)}</span>
           </div>
           {hasChildren && (
             isExpanded ? (
@@ -184,7 +150,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, onLogout, us
           <div className="ml-3">
             <p className="text-sm font-medium text-gray-900">{user.name}</p>
             <p className="text-xs text-gray-500">
-              {user.role === 'admin' ? '관리자' : '사용자'}
+              {t(`user.${user.role}`)}
             </p>
           </div>
         </div>
@@ -204,7 +170,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, onLogout, us
           className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors duration-150"
         >
           <LogOut className="mr-3 h-5 w-5 text-gray-400" />
-          로그아웃
+          {t('auth.logout')}
         </button>
       </div>
     </div>

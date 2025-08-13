@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { 
   Users, 
   Shield, 
@@ -78,6 +79,7 @@ const availablePermissions: Permission[] = [
 ];
 
 const AccessControlPage: React.FC = () => {
+  const { t } = useTranslation();
   const [users, setUsers] = useState<User[]>(mockUsers);
   const [filteredUsers, setFilteredUsers] = useState<User[]>(mockUsers);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);

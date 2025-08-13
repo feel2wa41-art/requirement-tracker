@@ -6,7 +6,7 @@ export interface IRequirement extends Document {
   number: string; // "1.0", "1.1", "1.1.1"
   title: string;
   description?: string;
-  status: '요청' | '검토중' | '진행중' | '완료' | '보류' | '취소';
+  status: string; // 커스텀 상태값을 지원하기 위해 string으로 변경
   priority: '높음' | '보통' | '낮음';
   requester?: string;
   requestDate?: Date;
@@ -19,6 +19,8 @@ export interface IRequirement extends Document {
   level: number; // 트리 레벨 (0: 루트, 1: 1단계 하위, 2: 2단계 하위...)
   sortOrder: number; // 같은 레벨 내에서의 정렬 순서
   isExpanded: boolean; // UI에서 펼침/접힘 상태
+  progress?: number; // 진척도 (0-100)
+  completionDate?: Date; // 요구사항 완료일
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,7 +33,6 @@ const requirementSchema = new Schema<IRequirement>({
   description: { type: String, default: '' },
   status: { 
     type: String, 
-    enum: ['요청', '검토중', '진행중', '완료', '보류', '취소'], 
     default: '요청' 
   },
   priority: { 
@@ -49,7 +50,9 @@ const requirementSchema = new Schema<IRequirement>({
   parentNumber: { type: String, default: null },
   level: { type: Number, default: 0 },
   sortOrder: { type: Number, default: 0 },
-  isExpanded: { type: Boolean, default: true }
+  isExpanded: { type: Boolean, default: true },
+  progress: { type: Number, default: 0, min: 0, max: 100 }, // 진척도 (0-100)
+  completionDate: { type: Date } // 요구사항 완료일
 }, {
   timestamps: true
 });
@@ -63,7 +66,7 @@ requirementSchema.pre('save', async function(next) {
       console.log('Generated new requirement ID:', this.id);
     }
     next();
-  } catch (error) {
+  } catch (error: any) {
     console.error('Pre-save middleware error:', error);
     next(error);
   }

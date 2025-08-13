@@ -1,31 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, RefreshCw, Filter, Search } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { Plus, RefreshCw, Filter, Search, Grid, List } from 'lucide-react';
 import RequirementCard from './RequirementCard';
+import RequirementRow from './RequirementRow';
 import axios from 'axios';
-
-interface Requirement {
-  id: number;
-  projectId: number;
-  number: string;
-  title: string;
-  description?: string;
-  status: '요청' | '검토중' | '진행중' | '완료' | '보류' | '취소';
-  priority: '높음' | '보통' | '낮음';
-  requester?: string;
-  requestDate?: string;
-  modifier?: string;
-  modifyDate?: string;
-  confirmer?: string;
-  confirmDate?: string;
-  parentId?: number | null;
-  parentNumber?: string | null;
-  level: number;
-  sortOrder: number;
-  isExpanded: boolean;
-  children?: Requirement[];
-  createdAt: string;
-  updatedAt: string;
-}
+import { Requirement, CustomStatus } from '../types/requirement';
 
 interface Props {
   projectId: number;
@@ -40,8 +19,9 @@ const RequirementList: React.FC<Props> = ({
   userRole, 
   onAddRequirement,
   onEditRequirement,
-  onRequirementAdded
+  onRequirementAdded: _onRequirementAdded
 }) => {
+  const { t } = useTranslation();
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [filteredRequirements, setFilteredRequirements] = useState<Requirement[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -49,8 +29,25 @@ const RequirementList: React.FC<Props> = ({
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'card' | 'row'>('row');
+  const [customStatuses, setCustomStatuses] = useState<CustomStatus[]>([]);
 
   const canWrite = userRole === 'admin' || userRole === 'manager';
+
+  // 커스텀 상태 로드
+  const loadCustomStatuses = async () => {
+    if (!projectId) return;
+
+    try {
+      const response = await axios.get(`/api/projects/${projectId}/custom-statuses`);
+      if (response.data.success) {
+        const sortedStatuses = response.data.data.customStatuses.sort((a: any, b: any) => a.order - b.order);
+        setCustomStatuses(sortedStatuses);
+      }
+    } catch (err: any) {
+      console.error('커스텀 상태 로드 실패:', err);
+    }
+  };
 
   // 요구사항 목록 로드
   const loadRequirements = async () => {
@@ -76,9 +73,20 @@ const RequirementList: React.FC<Props> = ({
     }
   };
 
-  // 프로젝트 변경 시 요구사항 다시 로드
+  // 프로젝트 변경 시 요구사항과 커스텀 상태 다시 로드
   useEffect(() => {
     loadRequirements();
+    loadCustomStatuses();
+  }, [projectId]);
+
+  // 상태 변경 이벤트 리스너 추가
+  useEffect(() => {
+    const handleStatusChanged = () => {
+      loadCustomStatuses();
+    };
+    
+    window.addEventListener('statusChanged', handleStatusChanged);
+    return () => window.removeEventListener('statusChanged', handleStatusChanged);
   }, [projectId]);
 
   // 필터링 및 검색
@@ -182,7 +190,7 @@ const RequirementList: React.FC<Props> = ({
   };
 
   // 하위 요구사항 추가
-  const handleAddSubRequirement = (parentId: number, parentNumber: string) => {
+  const handleAddSubRequirement = (_parentId: number, parentNumber: string) => {
     if (onAddRequirement) {
       onAddRequirement(projectId, parentNumber);
     }
@@ -222,6 +230,89 @@ const RequirementList: React.FC<Props> = ({
     }
   };
 
+  // 요구사항 제목 업데이트
+  const handleUpdateRequirement = async (id: number, title: string) => {
+    try {
+      const response = await axios.patch(`/api/requirements/${id}`, { title });
+      
+      if (response.data.success) {
+        // 로컬 상태 업데이트
+        const updateRequirements = (reqs: Requirement[]): Requirement[] => {
+          return reqs.map(req => {
+            if (req.id === id) {
+              return { ...req, title, modifyDate: new Date().toISOString() };
+            }
+            if (req.children) {
+              return { ...req, children: updateRequirements(req.children) };
+            }
+            return req;
+          });
+        };
+
+        setRequirements(prev => updateRequirements(prev));
+      }
+    } catch (err: any) {
+      console.error('요구사항 업데이트 실패:', err);
+      setError(err.response?.data?.message || '요구사항 업데이트 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 진척도 변경
+  const handleProgressChange = async (id: number, progress: number) => {
+    try {
+      const response = await axios.patch(`/api/requirements/${id}/progress`, { progress });
+      
+      if (response.data.success) {
+        // 로컬 상태 업데이트
+        const updateRequirements = (reqs: Requirement[]): Requirement[] => {
+          return reqs.map(req => {
+            if (req.id === id) {
+              return { ...req, progress, modifyDate: new Date().toISOString() };
+            }
+            if (req.children) {
+              return { ...req, children: updateRequirements(req.children) };
+            }
+            return req;
+          });
+        };
+
+        setRequirements(prev => updateRequirements(prev));
+      }
+    } catch (err: any) {
+      console.error('진척도 업데이트 실패:', err);
+      setError(err.response?.data?.message || '진척도 업데이트 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 우선순위 변경
+  const handlePriorityChange = async (requirementId: number, priority: '높음' | '보통' | '낮음') => {
+    try {
+      const response = await axios.put(`/api/requirements/${requirementId}/priority`, {
+        priority
+      });
+
+      if (response.data.success) {
+        // 로컬 상태 업데이트
+        const updateRequirements = (reqs: Requirement[]): Requirement[] => {
+          return reqs.map(req => {
+            if (req.id === requirementId) {
+              return { ...req, priority };
+            }
+            if (req.children) {
+              return { ...req, children: updateRequirements(req.children) };
+            }
+            return req;
+          });
+        };
+        
+        setRequirements(prev => updateRequirements(prev));
+      }
+    } catch (err: any) {
+      console.error('우선순위 업데이트 실패:', err);
+      setError(err.response?.data?.message || '우선순위 업데이트 중 오류가 발생했습니다.');
+    }
+  };
+
   // 통계 계산
   const calculateStats = () => {
     const flatRequirements = flattenRequirements(requirements);
@@ -246,7 +337,7 @@ const RequirementList: React.FC<Props> = ({
   };
 
   const stats = calculateStats();
-  const statusOptions = ['요청', '검토중', '진행중', '완료', '보류', '취소'];
+  const statusOptions = customStatuses.map(status => status.name);
   const priorityOptions = ['높음', '보통', '낮음'];
 
   if (error) {
@@ -273,16 +364,42 @@ const RequirementList: React.FC<Props> = ({
       {/* 헤더 및 통계 */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">요구사항 목록</h3>
+          <h3 className="text-lg font-semibold text-gray-900">{t('requirement.requirementList')}</h3>
           <div className="flex items-center space-x-4 mt-2 text-sm text-gray-600">
-            <span>전체 {stats.total}개</span>
-            <span className="text-green-600">완료 {stats.completed}개</span>
-            <span className="text-orange-600">진행 중 {stats.inProgress}개</span>
-            <span className="text-blue-600">요청 {stats.pending}개</span>
+            <span>{t('requirement.totalCount')} {stats.total}개</span>
+            <span className="text-green-600">{t('requirement.completedCount')} {stats.completed}개</span>
+            <span className="text-orange-600">{t('requirement.inProgressCount')} {stats.inProgress}개</span>
+            <span className="text-blue-600">{t('requirement.pendingCount')} {stats.pending}개</span>
           </div>
         </div>
         
         <div className="flex items-center space-x-2">
+          {/* 뷰 모드 전환 */}
+          <div className="flex items-center bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('row')}
+              className={`p-1 rounded transition-colors ${
+                viewMode === 'row' 
+                  ? 'bg-white text-gray-900 shadow-sm' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+              title={t('requirement.listView')}
+            >
+              <List size={16} />
+            </button>
+            <button
+              onClick={() => setViewMode('card')}
+              className={`p-1 rounded transition-colors ${
+                viewMode === 'card' 
+                  ? 'bg-white text-gray-900 shadow-sm' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+              title={t('requirement.cardView')}
+            >
+              <Grid size={16} />
+            </button>
+          </div>
+
           {canWrite && (
             <button
               onClick={handleAddRootRequirement}
@@ -290,14 +407,14 @@ const RequirementList: React.FC<Props> = ({
               disabled={!projectId}
             >
               <Plus size={16} className="mr-2" />
-              요구사항 추가
+              {t('requirement.addRequirement')}
             </button>
           )}
           
           <button
             onClick={() => loadRequirements()}
             className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
-            title="새로고침"
+            title={t('form.refresh')}
             disabled={isLoading}
           >
             <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
@@ -312,7 +429,7 @@ const RequirementList: React.FC<Props> = ({
             <Search size={16} className="absolute left-3 top-3 text-gray-400" />
             <input
               type="text"
-              placeholder="제목, 번호, 설명으로 검색..."
+              placeholder={t('requirement.searchPlaceholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -324,7 +441,7 @@ const RequirementList: React.FC<Props> = ({
             onChange={(e) => setStatusFilter(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
-            <option value="all">모든 상태</option>
+            <option value="all">{t('requirement.allStatuses')}</option>
             {statusOptions.map(status => (
               <option key={status} value={status}>{status}</option>
             ))}
@@ -335,7 +452,7 @@ const RequirementList: React.FC<Props> = ({
             onChange={(e) => setPriorityFilter(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
-            <option value="all">모든 우선순위</option>
+            <option value="all">{t('requirement.allPriorities')}</option>
             {priorityOptions.map(priority => (
               <option key={priority} value={priority}>{priority}</option>
             ))}
@@ -343,58 +460,124 @@ const RequirementList: React.FC<Props> = ({
           
           <div className="flex items-center text-sm text-gray-600">
             <Filter size={16} className="mr-2" />
-            {flattenRequirements(filteredRequirements).length}개 표시
+            {flattenRequirements(filteredRequirements).length}{t('requirement.displayingCount')}
           </div>
         </div>
       </div>
 
       {/* 요구사항 목록 */}
-      <div className="space-y-3">
-        {isLoading ? (
-          <div className="text-center py-8">
-            <RefreshCw size={24} className="animate-spin mx-auto text-gray-400 mb-2" />
-            <p className="text-gray-600">요구사항을 불러오는 중...</p>
+      {viewMode === 'row' ? (
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden max-h-[70vh] flex flex-col">
+          {/* 헤더 */}
+          <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
+            <div className="flex items-center text-xs font-medium text-gray-600">
+              <div className="w-6"></div>
+              <div className="w-20 text-center">{t('requirement.numberColumn')}</div>
+              <div className="flex-1 mx-3">{t('requirement.titleColumn')}</div>
+              <div className="w-20 text-center">{t('requirement.statusColumn')}</div>
+              <div className="w-12 text-center">{t('requirement.priorityColumn')}</div>
+              <div className="w-20 text-center">{t('requirement.progressColumn')}</div>
+              <div className="w-16 text-center">{t('requirement.subRequirementsColumn')}</div>
+              <div className="w-20"></div>
+            </div>
           </div>
-        ) : filteredRequirements.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-gray-600 mb-4">
-              {requirements.length === 0 
-                ? '등록된 요구사항이 없습니다.' 
-                : '검색 조건에 맞는 요구사항이 없습니다.'
-              }
-            </p>
-            {canWrite && requirements.length === 0 && (
-              <button
-                onClick={handleAddRootRequirement}
-                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700"
-                disabled={!projectId}
-              >
-                첫 번째 요구사항 추가하기
-              </button>
+          
+          {/* 목록 내용 - 스크롤 가능 */}
+          <div className="flex-1 overflow-y-auto" style={{scrollbarWidth: 'thin'}}>
+            {isLoading ? (
+              <div className="text-center py-8">
+                <RefreshCw size={24} className="animate-spin mx-auto text-gray-400 mb-2" />
+                <p className="text-gray-600">{t('requirement.loadingRequirements')}</p>
+              </div>
+            ) : filteredRequirements.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-600 mb-4">
+                  {requirements.length === 0 
+                    ? t('requirement.noRequirementsRegistered') 
+                    : t('requirement.noMatchingRequirements')
+                  }
+                </p>
+                {canWrite && requirements.length === 0 && (
+                  <button
+                    onClick={handleAddRootRequirement}
+                    className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700"
+                    disabled={!projectId}
+                  >
+                    {t('requirement.addFirstRequirement')}
+                  </button>
+                )}
+              </div>
+            ) : (
+              filteredRequirements.map((requirement) => (
+                <RequirementRow
+                  key={requirement.id}
+                  requirement={requirement}
+                  onToggleExpand={handleToggleExpand}
+                  onAddSubRequirement={handleAddSubRequirement}
+                  onEditRequirement={onEditRequirement}
+                  onStatusChange={handleStatusChange}
+                  onUpdateRequirement={handleUpdateRequirement}
+                  onProgressChange={handleProgressChange}
+                  onPriorityChange={handlePriorityChange}
+                  userRole={userRole}
+                  customStatuses={customStatuses}
+                />
+              ))
             )}
           </div>
-        ) : (
-          filteredRequirements.map((requirement) => (
-            <RequirementCard
-              key={requirement.id}
-              requirement={requirement}
-              onToggleExpand={handleToggleExpand}
-              onAddSubRequirement={handleAddSubRequirement}
-              onEditRequirement={onEditRequirement}
-              onStatusChange={handleStatusChange}
-              userRole={userRole}
-            />
-          ))
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="space-y-3 max-h-[70vh] overflow-y-auto" style={{scrollbarWidth: 'thin'}}>
+          {isLoading ? (
+            <div className="text-center py-8">
+              <RefreshCw size={24} className="animate-spin mx-auto text-gray-400 mb-2" />
+              <p className="text-gray-600">요구사항을 불러오는 중...</p>
+            </div>
+          ) : filteredRequirements.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-600 mb-4">
+                {requirements.length === 0 
+                  ? '등록된 요구사항이 없습니다.' 
+                  : '검색 조건에 맞는 요구사항이 없습니다.'
+                }
+              </p>
+              {canWrite && requirements.length === 0 && (
+                <button
+                  onClick={handleAddRootRequirement}
+                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700"
+                  disabled={!projectId}
+                >
+                  첫 번째 요구사항 추가하기
+                </button>
+              )}
+            </div>
+          ) : (
+            filteredRequirements.map((requirement) => (
+              <RequirementCard
+                key={requirement.id}
+                requirement={requirement}
+                onToggleExpand={handleToggleExpand}
+                onAddSubRequirement={handleAddSubRequirement}
+                onEditRequirement={onEditRequirement}
+                onStatusChange={handleStatusChange}
+                onUpdateRequirement={handleUpdateRequirement}
+                onProgressChange={handleProgressChange}
+                onPriorityChange={handlePriorityChange}
+                userRole={userRole}
+                customStatuses={customStatuses}
+              />
+            ))
+          )}
+        </div>
+      )}
 
       {/* 진행률 표시 */}
       {stats.total > 0 && (
         <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <h4 className="text-sm font-medium text-gray-900 mb-3">전체 진행률</h4>
+          <h4 className="text-sm font-medium text-gray-900 mb-3">{t('requirement.overallProgress')}</h4>
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span>완료: {stats.completed}/{stats.total}</span>
+              <span>{t('requirement.progressCompletion')} {stats.completed}/{stats.total}</span>
               <span>{stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-3">

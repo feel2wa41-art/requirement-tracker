@@ -1,12 +1,12 @@
 import express, { Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import { User, IUser } from '../models/User';
 
 const router = express.Router();
 
 // JWT 비밀키 (실제로는 환경변수에서 가져와야 함)
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-here';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
+const JWT_SECRET: string = process.env.JWT_SECRET || 'your-secret-key-here';
+const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || '24h';
 
 // 사용자 등록
 router.post('/register', async (req: Request, res: Response) => {
@@ -130,15 +130,17 @@ router.post('/login', async (req: Request, res: Response) => {
     await user.save();
 
     // JWT 토큰 생성
-    const token = jwt.sign(
-      { 
-        userId: user._id,
-        username: user.username,
-        role: user.role
-      },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
-    );
+    const payload = { 
+      userId: user._id,
+      username: user.username,
+      role: user.role
+    };
+    
+    const options = { 
+      expiresIn: '24h' as const
+    };
+    
+    const token = jwt.sign(payload, JWT_SECRET, options);
 
     // 사용자 정보 (비밀번호 제외)
     const userResponse = {

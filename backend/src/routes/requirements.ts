@@ -330,4 +330,174 @@ router.patch('/:id/expand', permissionMiddleware('requirement.read'), async (req
   }
 });
 
+// 요구사항 진척도 변경
+router.patch('/:id/progress', permissionMiddleware('requirement.write'), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { progress } = req.body;
+    const user = (req as any).user;
+
+    // 진척도 값 검증
+    if (progress === undefined || progress === null) {
+      return res.status(400).json({
+        success: false,
+        message: '진척도는 필수입니다.'
+      });
+    }
+
+    const progressValue = Number(progress);
+    if (isNaN(progressValue) || progressValue < 0 || progressValue > 100) {
+      return res.status(400).json({
+        success: false,
+        message: '진척도는 0에서 100 사이의 숫자여야 합니다.'
+      });
+    }
+
+    const updateData: any = {
+      progress: progressValue,
+      modifier: user.name,
+      modifyDate: new Date()
+    };
+
+    // 100% 완료 시 완료일 자동 설정
+    if (progressValue === 100) {
+      updateData.completionDate = new Date();
+      updateData.status = '완료';
+      updateData.confirmer = user.name;
+      updateData.confirmDate = new Date();
+    }
+
+    const requirement = await Requirement.findOneAndUpdate(
+      { id: Number(id) },
+      updateData,
+      { new: true }
+    );
+
+    if (!requirement) {
+      return res.status(404).json({
+        success: false,
+        message: '요구사항을 찾을 수 없습니다.'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: '요구사항 진척도가 변경되었습니다.',
+      data: { requirement }
+    });
+  } catch (error: any) {
+    console.error('Update requirement progress error:', error);
+    res.status(500).json({
+      success: false,
+      message: '요구사항 진척도 변경 중 오류가 발생했습니다.',
+      error: error.message
+    });
+  }
+});
+
+// 요구사항 제목 변경 (간단 편집)
+router.patch('/:id', permissionMiddleware('requirement.write'), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { title } = req.body;
+    const user = (req as any).user;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: '제목은 필수입니다.'
+      });
+    }
+
+    const updateData = {
+      title: title.trim(),
+      modifier: user.name,
+      modifyDate: new Date()
+    };
+
+    const requirement = await Requirement.findOneAndUpdate(
+      { id: Number(id) },
+      updateData,
+      { new: true }
+    );
+
+    if (!requirement) {
+      return res.status(404).json({
+        success: false,
+        message: '요구사항을 찾을 수 없습니다.'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: '요구사항 제목이 변경되었습니다.',
+      data: { requirement }
+    });
+  } catch (error: any) {
+    console.error('Update requirement title error:', error);
+    res.status(500).json({
+      success: false,
+      message: '요구사항 제목 변경 중 오류가 발생했습니다.',
+      error: error.message
+    });
+  }
+});
+
+// 요구사항 우선순위 변경
+router.put('/:id/priority', permissionMiddleware('requirement.write'), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { priority } = req.body;
+    const user = (req as any).user;
+
+    if (!priority) {
+      return res.status(400).json({
+        success: false,
+        message: '우선순위는 필수입니다.'
+      });
+    }
+
+    // 우선순위 값 검증
+    const validPriorities = ['높음', '보통', '낮음'];
+    if (!validPriorities.includes(priority)) {
+      return res.status(400).json({
+        success: false,
+        message: '올바르지 않은 우선순위입니다. (높음, 보통, 낮음 중 선택)'
+      });
+    }
+
+    const updateData = {
+      priority,
+      modifier: user.name,
+      modifyDate: new Date()
+    };
+
+    const requirement = await Requirement.findOneAndUpdate(
+      { id: Number(id) },
+      updateData,
+      { new: true }
+    );
+
+    if (!requirement) {
+      return res.status(404).json({
+        success: false,
+        message: '요구사항을 찾을 수 없습니다.'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: '요구사항 우선순위가 변경되었습니다.',
+      data: { requirement }
+    });
+  } catch (error: any) {
+    console.error('Update requirement priority error:', error);
+    res.status(500).json({
+      success: false,
+      message: '요구사항 우선순위 변경 중 오류가 발생했습니다.',
+      error: error.message
+    });
+  }
+});
+
 export default router;

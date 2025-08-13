@@ -10,12 +10,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "axios": "^1.5.0",
+    "clsx": "^2.0.0",
+    "i18next": "^25.3.4",
+    "i18next-browser-languagedetector": "^8.2.0",
+    "lucide-react": "^0.279.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.15.0",
-    "axios": "^1.5.0",
-    "lucide-react": "^0.279.0",
-    "clsx": "^2.0.0"
+    "react-i18next": "^15.6.1",
+    "react-router-dom": "^6.15.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.15",
@@ -32,7 +35,12 @@
     "typescript": "^5.0.2",
     "vite": "^4.4.5"
   },
-  "keywords": ["requirement", "tracker", "react", "typescript"],
+  "keywords": [
+    "requirement",
+    "tracker",
+    "react",
+    "typescript"
+  ],
   "author": "Development Team",
   "license": "MIT"
 }

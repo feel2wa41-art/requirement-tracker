@@ -1,29 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, Edit, Calendar, User, ChevronDown, ChevronRight, MoreVertical } from 'lucide-react';
-
-interface Requirement {
-  id: number;
-  projectId: number;
-  number: string;
-  title: string;
-  description?: string;
-  status: '요청' | '검토중' | '진행중' | '완료' | '보류' | '취소';
-  priority: '높음' | '보통' | '낮음';
-  requester?: string;
-  requestDate?: string;
-  modifier?: string;
-  modifyDate?: string;
-  confirmer?: string;
-  confirmDate?: string;
-  parentId?: number | null;
-  parentNumber?: string | null;
-  level: number;
-  sortOrder: number;
-  isExpanded: boolean;
-  children?: Requirement[];
-  createdAt: string;
-  updatedAt: string;
-}
+import { Requirement } from '../types/requirement';
 
 interface Props {
   requirement: Requirement;
@@ -31,12 +8,16 @@ interface Props {
   onAddSubRequirement?: (parentId: number, parentNumber: string) => void;
   onEditRequirement?: (requirement: Requirement) => void;
   onStatusChange?: (id: number, status: Requirement['status']) => void;
+  onUpdateRequirement?: (id: number, title: string) => void;
+  onProgressChange?: (id: number, progress: number) => void;
+  onPriorityChange?: (id: number, priority: '높음' | '보통' | '낮음') => void;
   userRole: 'admin' | 'manager' | 'user';
+  customStatuses?: any[];
 }
 
 // 상태별 색상 매핑
-const getStatusColor = (status: Requirement['status']): string => {
-  const colors = {
+const getStatusColor = (status: string): string => {
+  const colors: Record<string, string> = {
     '요청': 'bg-blue-100 text-blue-800',
     '검토중': 'bg-yellow-100 text-yellow-800',
     '진행중': 'bg-orange-100 text-orange-800',
@@ -78,7 +59,11 @@ const RequirementCard: React.FC<Props> = ({
   onAddSubRequirement,
   onEditRequirement,
   onStatusChange,
-  userRole 
+  onUpdateRequirement,
+  onProgressChange,
+  onPriorityChange,
+  userRole,
+  customStatuses 
 }) => {
   const [showActions, setShowActions] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
@@ -116,14 +101,14 @@ const RequirementCard: React.FC<Props> = ({
     }
   };
 
-  const handleStatusChange = (newStatus: Requirement['status']) => {
+  const handleStatusChange = (newStatus: string) => {
     if (onStatusChange) {
       onStatusChange(requirement.id, newStatus);
     }
     setShowStatusMenu(false);
   };
 
-  const statusOptions: Requirement['status'][] = ['요청', '검토중', '진행중', '완료', '보류', '취소'];
+  const statusOptions: string[] = ['요청', '검토중', '진행중', '완료', '보류', '취소'];
 
   return (
     <div>
@@ -313,7 +298,11 @@ const RequirementCard: React.FC<Props> = ({
               onAddSubRequirement={onAddSubRequirement}
               onEditRequirement={onEditRequirement}
               onStatusChange={onStatusChange}
+              onUpdateRequirement={onUpdateRequirement}
+              onProgressChange={onProgressChange}
+              onPriorityChange={onPriorityChange}
               userRole={userRole}
+              customStatuses={customStatuses}
             />
           ))}
         </div>
@@ -370,18 +359,18 @@ const RequirementProgress: React.FC<ProgressProps> = ({ requirements }) => {
   );
 };
 
-// 외부 클릭 감지를 위한 hook
-const useClickOutside = (ref: React.RefObject<HTMLElement>, callback: () => void) => {
-  React.useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        callback();
-      }
-    };
-    
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [ref, callback]);
-};
+// 외부 클릭 감지를 위한 hook (사용하지 않지만 향후 사용을 위해 유지)
+// const useClickOutside = (ref: React.RefObject<HTMLElement>, callback: () => void) => {
+//   React.useEffect(() => {
+//     const handleClick = (e: MouseEvent) => {
+//       if (ref.current && !ref.current.contains(e.target as Node)) {
+//         callback();
+//       }
+//     };
+//     
+//     document.addEventListener('mousedown', handleClick);
+//     return () => document.removeEventListener('mousedown', handleClick);
+//   }, [ref, callback]);
+// };
 
 export default RequirementCard;
