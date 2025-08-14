@@ -8,6 +8,7 @@ import projectRoutes from './routes/projects';
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import requirementRoutes from './routes/requirements';
+import historyRoutes from './routes/history';
 
 dotenv.config();
 
@@ -32,6 +33,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/requirements', requirementRoutes);
+app.use('/api/history', historyRoutes);
 
 // 기본 라우트
 app.get('/', (req, res) => {

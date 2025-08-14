@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Plus } from 'lucide-react';
 import axios from 'axios';
@@ -49,13 +49,13 @@ const RequirementForm: React.FC<RequirementFormProps> = ({
   const { t } = useTranslation();
   const isEditMode = mode === 'edit' && requirement;
   
-  const getInitialFormData = () => {
-    if (isEditMode) {
+  const getInitialFormData = useCallback(() => {
+    if (isEditMode && requirement) {
       return {
-        title: requirement.title,
+        title: requirement.title || '',
         description: requirement.description || '',
-        status: requirement.status,
-        priority: requirement.priority,
+        status: requirement.status || '요청',
+        priority: requirement.priority || '보통',
         requester: requirement.requester || '',
         modifier: requirement.modifier || '',
         confirmer: requirement.confirmer || ''
@@ -70,7 +70,7 @@ const RequirementForm: React.FC<RequirementFormProps> = ({
       modifier: '',
       confirmer: ''
     };
-  };
+  }, [mode, requirement, isEditMode]);
 
   const [formData, setFormData] = useState(getInitialFormData());
 
@@ -80,10 +80,11 @@ const RequirementForm: React.FC<RequirementFormProps> = ({
   // 요구사항이 변경될 때 폼 데이터 업데이트
   useEffect(() => {
     if (isOpen) {
-      setFormData(getInitialFormData());
+      const initialData = getInitialFormData();
+      setFormData(initialData);
       setError(null);
     }
-  }, [isOpen, requirement, mode]);
+  }, [isOpen, requirement, mode, getInitialFormData]);
 
   const statusOptions = ['요청', '검토중', '진행중', '완료', '보류', '취소'] as const;
   const priorityOptions = ['높음', '보통', '낮음'] as const;
@@ -159,7 +160,9 @@ const RequirementForm: React.FC<RequirementFormProps> = ({
 
   const handleClose = () => {
     if (!loading) {
-      resetForm();
+      if (!isEditMode) {
+        resetForm();
+      }
       onClose();
     }
   };

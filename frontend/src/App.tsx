@@ -7,7 +7,7 @@ import ProjectManagementPage from './pages/ProjectManagementPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import ProjectProgressPage from './pages/ProjectProgressPage';
 import AccessControlPage from './pages/AccessControlPage';
-import ReportPage from './pages/ReportPage';
+import EnhancedReportPage from './pages/EnhancedReportPage';
 import { api } from './api/client';
 
 const AppContent: React.FC = () => {
@@ -62,7 +62,7 @@ const AppContent: React.FC = () => {
           </div>
         );
       case '/reports':
-        return <ReportPage />;
+        return <EnhancedReportPage />;
       case '/admin/access':
         return <AccessControlPage />;
       case '/admin/settings':

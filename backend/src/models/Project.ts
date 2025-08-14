@@ -58,6 +58,9 @@ export interface IProject extends Document {
   modifier: string;
   confirmer: string;
   status: '진행중' | '완료' | '보류';
+  startDate?: Date; // 프로젝트 시작일
+  targetEndDate?: Date; // 목표 종료일
+  actualEndDate?: Date; // 실제 종료일
   requirements: IRequirement[];
   details: IProjectDetails; // 프로젝트 상세 기록 (신규 추가)
   customStatuses: ICustomStatus[]; // 프로젝트별 커스텀 상태 (신규 추가)
@@ -137,6 +140,9 @@ const projectSchema = new Schema<IProject>({
     enum: ['진행중', '완료', '보류'], 
     default: '진행중' 
   },
+  startDate: { type: Date }, // 프로젝트 시작일
+  targetEndDate: { type: Date }, // 목표 종료일
+  actualEndDate: { type: Date }, // 실제 종료일
   requirements: [requirementSchema],
   details: { type: projectDetailsSchema, default: {} },
   customStatuses: { 

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, RefreshCw, Filter, Search, Grid, List } from 'lucide-react';
+import { Plus, RefreshCw, Filter, Search, Grid, List, Download } from 'lucide-react';
 import RequirementCard from './RequirementCard';
 import RequirementRow from './RequirementRow';
 import axios from 'axios';
 import { Requirement, CustomStatus } from '../types/requirement';
+import * as XLSX from 'xlsx';
 
 interface Props {
   projectId: number;
@@ -336,6 +337,107 @@ const RequirementList: React.FC<Props> = ({
     return result;
   };
 
+  // 엑셀 내보내기 함수
+  const handleExportToExcel = async () => {
+    try {
+      const flatReqs = flattenRequirements(filteredRequirements);
+      
+      // 프로젝트 정보 가져오기
+      let projectName = '';
+      try {
+        const projectResponse = await axios.get(`/api/projects`);
+        if (projectResponse.data.success) {
+          const project = projectResponse.data.data.projects.find((p: any) => p.id === projectId);
+          projectName = project?.name || `프로젝트 ${projectId}`;
+        }
+      } catch (err) {
+        projectName = `프로젝트 ${projectId}`;
+      }
+
+      // 엑셀 데이터 준비
+      const excelData = flatReqs.map((req, index) => ({
+        '번호': index + 1,
+        '요구사항 번호': req.number || '',
+        '제목': req.title || '',
+        '설명': req.description || '',
+        '상태': req.status || '',
+        '우선순위': req.priority || '',
+        '요청자': req.requester || '',
+        '수정자': req.modifier || '',
+        '확인자': req.confirmer || '',
+        '시작일': req.startDate ? new Date(req.startDate).toLocaleDateString('ko-KR') : '',
+        '목표 종료일': req.targetEndDate ? new Date(req.targetEndDate).toLocaleDateString('ko-KR') : '',
+        '실제 종료일': req.actualEndDate ? new Date(req.actualEndDate).toLocaleDateString('ko-KR') : '',
+        '요청일': req.requestDate ? new Date(req.requestDate).toLocaleDateString('ko-KR') : '',
+        '수정일': req.modifyDate ? new Date(req.modifyDate).toLocaleDateString('ko-KR') : '',
+        '확인일': req.confirmDate ? new Date(req.confirmDate).toLocaleDateString('ko-KR') : '',
+        '생성일': req.createdAt ? new Date(req.createdAt).toLocaleDateString('ko-KR') : '',
+        '수정일_최종': req.updatedAt ? new Date(req.updatedAt).toLocaleDateString('ko-KR') : '',
+        '레벨': req.level || 0,
+        '부모 번호': req.parentNumber || '',
+        '진척도': req.progress ? `${req.progress}%` : '0%'
+      }));
+
+      // 워크북 생성
+      const wb = XLSX.utils.book_new();
+      
+      // 요약 정보 시트
+      const stats = calculateStats();
+      const summaryData = [
+        ['프로젝트명', projectName],
+        ['총 요구사항 수', stats.total],
+        ['완료', stats.completed],
+        ['진행 중', stats.inProgress],
+        ['대기', stats.pending],
+        ['완료율', `${stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%`],
+        ['내보내기 일시', new Date().toLocaleString('ko-KR')]
+      ];
+      
+      const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
+      XLSX.utils.book_append_sheet(wb, summaryWs, '요약');
+
+      // 요구사항 목록 시트
+      const ws = XLSX.utils.json_to_sheet(excelData);
+      
+      // 열 너비 설정
+      const columnWidths = [
+        { wch: 8 },   // 번호
+        { wch: 15 },  // 요구사항 번호
+        { wch: 30 },  // 제목
+        { wch: 50 },  // 설명
+        { wch: 10 },  // 상태
+        { wch: 10 },  // 우선순위
+        { wch: 15 },  // 요청자
+        { wch: 15 },  // 수정자
+        { wch: 15 },  // 확인자
+        { wch: 12 },  // 시작일
+        { wch: 12 },  // 목표 종료일
+        { wch: 12 },  // 실제 종료일
+        { wch: 12 },  // 요청일
+        { wch: 12 },  // 수정일
+        { wch: 12 },  // 확인일
+        { wch: 12 },  // 생성일
+        { wch: 12 },  // 수정일_최종
+        { wch: 8 },   // 레벨
+        { wch: 15 },  // 부모 번호
+        { wch: 10 }   // 진척도
+      ];
+      
+      ws['!cols'] = columnWidths;
+      
+      XLSX.utils.book_append_sheet(wb, ws, '요구사항 목록');
+
+      // 파일 다운로드
+      const fileName = `${projectName}_요구사항목록_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      
+      console.log('엑셀 파일이 생성되었습니다:', fileName);
+    } catch (err) {
+      console.error('엑셀 내보내기 실패:', err);
+      setError('엑셀 파일 생성 중 오류가 발생했습니다.');
+    }
+  };
+
   const stats = calculateStats();
   const statusOptions = customStatuses.map(status => status.name);
   const priorityOptions = ['높음', '보통', '낮음'];
@@ -410,6 +512,16 @@ const RequirementList: React.FC<Props> = ({
               {t('requirement.addRequirement')}
             </button>
           )}
+
+          <button
+            onClick={handleExportToExcel}
+            className="px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 flex items-center"
+            disabled={!projectId || isLoading}
+            title="엑셀로 내보내기"
+          >
+            <Download size={16} className="mr-2" />
+            엑셀
+          </button>
           
           <button
             onClick={() => loadRequirements()}
@@ -470,15 +582,17 @@ const RequirementList: React.FC<Props> = ({
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden max-h-[70vh] flex flex-col">
           {/* 헤더 */}
           <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
-            <div className="flex items-center text-xs font-medium text-gray-600">
-              <div className="w-6"></div>
-              <div className="w-20 text-center">{t('requirement.numberColumn')}</div>
-              <div className="flex-1 mx-3">{t('requirement.titleColumn')}</div>
-              <div className="w-20 text-center">{t('requirement.statusColumn')}</div>
-              <div className="w-12 text-center">{t('requirement.priorityColumn')}</div>
-              <div className="w-20 text-center">{t('requirement.progressColumn')}</div>
-              <div className="w-16 text-center">{t('requirement.subRequirementsColumn')}</div>
-              <div className="w-20"></div>
+            <div className="grid items-center grid-cols-[28px_72px_minmax(220px,1fr)_110px_110px_110px_80px_120px_140px_80px] text-xs font-medium text-gray-600">
+              <div></div> {/* expand space */}
+              <div className="text-center">{t('requirement.numberColumn')}</div>
+              <div className="pl-2">{t('requirement.titleColumn')}</div>
+              <div className="text-center">{t('requirement.statusColumn')}</div>
+              <div className="text-center">{t('requirement.priorityColumn')}</div>
+              <div className="text-center">{t('requirement.progressColumn')}</div>
+              <div className="text-center">{t('requirement.subRequirementsColumn')}</div>
+              <div className="text-center">개발자</div>
+              <div className="text-center">완료목표일</div>
+              <div></div> {/* action buttons space */}
             </div>
           </div>
           

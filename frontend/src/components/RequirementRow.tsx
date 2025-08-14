@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Plus, Edit, ChevronDown, ChevronRight, Save, X } from 'lucide-react';
 import { Requirement, CustomStatus } from '../types/requirement';
 import StatusChangeModal from './StatusChangeModal';
+import PriorityChangeModal from './PriorityChangeModal';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   requirement: Requirement;
@@ -75,16 +77,43 @@ const RequirementRow: React.FC<Props> = ({
   userRole,
   customStatuses 
 }) => {
+  const { i18n } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(requirement.title);
   const [showStatusModal, setShowStatusModal] = useState(false);
-  const [showPriorityMenu, setShowPriorityMenu] = useState(false);
+  const [showPriorityModal, setShowPriorityModal] = useState(false);
   const [isEditingProgress, setIsEditingProgress] = useState(false);
   const [editProgress, setEditProgress] = useState(requirement.progress || 0);
   
   const hasChildren = requirement.children && requirement.children.length > 0;
   const canEdit = userRole === 'admin' || userRole === 'manager';
   const canWrite = userRole === 'admin' || userRole === 'manager';
+
+  // 날짜 포맷팅 함수
+  const formatDate = (dateString: string): string => {
+    try {
+      const date = new Date(dateString);
+      const currentLang = i18n.language;
+      
+      if (currentLang === 'en') {
+        // 영문: "1 Aug 2025" 형식
+        return date.toLocaleDateString('en-GB', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric'
+        });
+      } else {
+        // 한국어: "2025-08-01" 형식
+        return date.toLocaleDateString('ko-KR', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        }).replace(/\./g, '-').replace(/-$/, '');
+      }
+    } catch {
+      return dateString;
+    }
+  };
 
   // 들여쓰기 스타일
   const indentStyle = {
@@ -124,7 +153,7 @@ const RequirementRow: React.FC<Props> = ({
     if (onPriorityChange) {
       onPriorityChange(requirement.id, newPriority);
     }
-    setShowPriorityMenu(false);
+    setShowPriorityModal(false);
   };
 
   const handleSaveEdit = () => {
@@ -172,189 +201,182 @@ const RequirementRow: React.FC<Props> = ({
   return (
     <div>
       <div 
-        className="flex items-center py-2 px-4 hover:bg-gray-50 border-b border-gray-100 group"
+        className="py-2 px-4 hover:bg-gray-50 border-b border-gray-100 group"
         style={indentStyle}
       >
-        {/* 펼치기/접기 버튼 */}
-        <div className="w-6 flex-shrink-0">
-          {hasChildren && (
-            <button
-              onClick={handleToggleExpand}
-              className="p-1 hover:bg-gray-200 rounded transition-colors duration-200"
-              title={requirement.isExpanded ? '접기' : '펼치기'}
-            >
-              {requirement.isExpanded ? (
-                <ChevronDown size={14} className="text-gray-600" />
-              ) : (
-                <ChevronRight size={14} className="text-gray-600" />
-              )}
-            </button>
-          )}
-        </div>
+        <div className="grid items-center grid-cols-[28px_72px_minmax(220px,1fr)_110px_110px_110px_80px_120px_140px_80px]">
+          {/* 펼치기/접기 버튼 */}
+          <div className="flex justify-center">
+            {hasChildren && (
+              <button
+                onClick={handleToggleExpand}
+                className="p-1 hover:bg-gray-200 rounded transition-colors duration-200"
+                title={requirement.isExpanded ? '접기' : '펼치기'}
+              >
+                {requirement.isExpanded ? (
+                  <ChevronDown size={14} className="text-gray-600" />
+                ) : (
+                  <ChevronRight size={14} className="text-gray-600" />
+                )}
+              </button>
+            )}
+          </div>
 
-        {/* 번호 */}
-        <div className="w-20 flex-shrink-0">
-          <span className="text-xs font-mono text-gray-600 bg-gray-100 px-2 py-1 rounded">
-            {requirement.number}
-          </span>
-        </div>
-
-        {/* 제목 */}
-        <div className="flex-1 min-w-0 mx-3">
-          {isEditing ? (
-            <input
-              type="text"
-              value={editTitle}
-              onChange={(e) => setEditTitle(e.target.value)}
-              onKeyDown={handleKeyPress}
-              onBlur={handleSaveEdit}
-              className="w-full text-sm border border-blue-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              autoFocus
-            />
-          ) : (
-            <span 
-              className="text-sm text-gray-900 cursor-pointer hover:text-blue-600"
-              onClick={() => canEdit && setIsEditing(true)}
-              title={canEdit ? '클릭하여 편집' : requirement.title}
-            >
-              {requirement.title}
+          {/* 번호 */}
+          <div className="flex justify-center">
+            <span className="inline-flex items-center justify-center rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+              {requirement.number}
             </span>
-          )}
-        </div>
+          </div>
 
-        {/* 상태 */}
-        <div className="w-20 flex-shrink-0 relative">
-          <button
-            onClick={() => canEdit && setShowStatusModal(true)}
-            className={`text-xs px-2 py-1 rounded border transition-colors ${getStatusColor(requirement.status, customStatuses)} ${
-              canEdit ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'
-            }`}
-            disabled={!canEdit}
-            title={canEdit ? '상태 변경' : ''}
-          >
-            {requirement.status}
-          </button>
-        </div>
-
-        {/* 우선순위 */}
-        <div className="w-12 flex-shrink-0 text-center relative">
-          {canEdit && onPriorityChange ? (
-            <button
-              onClick={() => setShowPriorityMenu(!showPriorityMenu)}
-              className="hover:bg-gray-100 rounded p-1"
-              title={`우선순위: ${requirement.priority} (클릭하여 변경)`}
-            >
-              {getPriorityIcon(requirement.priority)}
-            </button>
-          ) : (
-            <span title={`우선순위: ${requirement.priority}`}>
-              {getPriorityIcon(requirement.priority)}
-            </span>
-          )}
-          
-          {/* 우선순위 변경 메뉴 */}
-          {showPriorityMenu && canEdit && onPriorityChange && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1 min-w-[80px]">
-              {['높음', '보통', '낮음'].map((priority) => (
-                <button
-                  key={priority}
-                  onClick={() => handlePriorityChange(priority as '높음' | '보통' | '낮음')}
-                  className={`block w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${
-                    priority === requirement.priority ? 'bg-gray-50 font-medium' : ''
-                  }`}
-                >
-                  {getPriorityIcon(priority as '높음' | '보통' | '낮음')} {priority}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* 진척도 */}
-        <div className="w-20 flex-shrink-0">
-          {isEditingProgress ? (
-            <div className="flex items-center space-x-1">
+          {/* 제목 */}
+          <div className="pl-2 min-w-0">
+            {isEditing ? (
               <input
-                type="number"
-                min="0"
-                max="100"
-                value={editProgress}
-                onChange={(e) => setEditProgress(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
-                onKeyDown={handleProgressKeyPress}
-                onBlur={handleProgressSave}
-                className="w-12 text-xs border border-blue-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                type="text"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                onKeyDown={handleKeyPress}
+                onBlur={handleSaveEdit}
+                className="w-full text-sm border border-blue-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 autoFocus
               />
-              <span className="text-xs text-gray-500">%</span>
-            </div>
-          ) : (
-            <div 
-              className={`text-center ${canEdit ? 'cursor-pointer hover:bg-gray-100 rounded px-1 py-0.5' : ''}`}
-              onClick={() => canEdit && setIsEditingProgress(true)}
-              title={canEdit ? '클릭하여 진척도 편집' : `진척도: ${requirement.progress || 0}%`}
+            ) : (
+              <span 
+                className="text-sm text-gray-900 cursor-pointer hover:text-blue-600 block truncate"
+                onClick={() => canEdit && setIsEditing(true)}
+                title={requirement.title}
+              >
+                {requirement.title}
+              </span>
+            )}
+          </div>
+
+          {/* 상태 */}
+          <div className="flex justify-center">
+            <button
+              onClick={() => canEdit && setShowStatusModal(true)}
+              className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${getStatusColor(requirement.status, customStatuses)} ${
+                canEdit ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'
+              }`}
+              disabled={!canEdit}
+              title={canEdit ? '상태 변경' : ''}
             >
-              <div className="text-xs font-medium text-gray-700">{requirement.progress || 0}%</div>
-              <div className="w-full bg-gray-200 rounded-full h-1 mt-0.5">
-                <div 
-                  className="bg-blue-500 h-1 rounded-full transition-all duration-300"
-                  style={{ width: `${requirement.progress || 0}%` }}
+              {requirement.status}
+            </button>
+          </div>
+
+          {/* 우선순위 */}
+          <div className="flex justify-center">
+            {canEdit && onPriorityChange ? (
+              <button
+                onClick={() => setShowPriorityModal(true)}
+                className="hover:bg-gray-100 rounded p-1"
+                title={`우선순위: ${requirement.priority} (클릭하여 변경)`}
+              >
+                {getPriorityIcon(requirement.priority)}
+              </button>
+            ) : (
+              <span title={`우선순위: ${requirement.priority}`}>
+                {getPriorityIcon(requirement.priority)}
+              </span>
+            )}
+          </div>
+
+          {/* 진척도 */}
+          <div className="flex justify-center">
+            {isEditingProgress ? (
+              <div className="flex items-center space-x-1">
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={editProgress}
+                  onChange={(e) => setEditProgress(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                  onKeyDown={handleProgressKeyPress}
+                  onBlur={handleProgressSave}
+                  className="w-10 text-xs border border-blue-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  autoFocus
                 />
+                <span className="text-xs text-gray-500">%</span>
               </div>
-            </div>
-          )}
-        </div>
+            ) : (
+              <div 
+                className={`px-2 py-1 ${canEdit ? 'cursor-pointer hover:bg-gray-100 rounded' : ''}`}
+                onClick={() => canEdit && setIsEditingProgress(true)}
+                title={canEdit ? '클릭하여 진척도 편집' : `진척도: ${requirement.progress || 0}%`}
+              >
+                <span className="text-xs font-medium text-gray-700">{requirement.progress || 0}%</span>
+              </div>
+            )}
+          </div>
 
-        {/* 하위 개수 */}
-        <div className="w-16 flex-shrink-0 text-center">
-          {hasChildren && (
-            <span className="text-xs text-gray-500">
-              {requirement.children?.length}개
+          {/* 하위 개수 */}
+          <div className="flex justify-center">
+            {hasChildren && (
+              <span className="text-xs text-gray-500">
+                {requirement.children?.length}개
+              </span>
+            )}
+          </div>
+
+          {/* 개발자 */}
+          <div className="flex justify-center">
+            <span className="text-xs text-gray-700">
+              {requirement.developer || '-'}
             </span>
-          )}
-        </div>
+          </div>
 
-        {/* 액션 버튼들 */}
-        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {isEditing ? (
-            <>
-              <button
-                onClick={handleSaveEdit}
-                className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors"
-                title="저장"
-              >
-                <Save size={14} />
-              </button>
-              <button
-                onClick={handleCancelEdit}
-                className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                title="취소"
-              >
-                <X size={14} />
-              </button>
-            </>
-          ) : (
-            <>
-              {canWrite && (
+          {/* 완료목표일 */}
+          <div className="flex justify-center">
+            <span className="text-xs text-gray-700">
+              {requirement.targetEndDate ? formatDate(requirement.targetEndDate) : '-'}
+            </span>
+          </div>
+
+          {/* 액션 버튼들 */}
+          <div className="flex items-center justify-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            {isEditing ? (
+              <>
                 <button
-                  onClick={handleAddSubRequirement}
+                  onClick={handleSaveEdit}
                   className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors"
-                  title="하위 요구사항 추가"
+                  title="저장"
                 >
-                  <Plus size={14} />
+                  <Save size={14} />
                 </button>
-              )}
-              
-              {canEdit && (
                 <button
-                  onClick={handleEditRequirement}
-                  className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                  title="상세 편집"
+                  onClick={handleCancelEdit}
+                  className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                  title="취소"
                 >
-                  <Edit size={14} />
+                  <X size={14} />
                 </button>
-              )}
-            </>
-          )}
+              </>
+            ) : (
+              <>
+                {canWrite && (
+                  <button
+                    onClick={handleAddSubRequirement}
+                    className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors"
+                    title="하위 요구사항 추가"
+                  >
+                    <Plus size={14} />
+                  </button>
+                )}
+                
+                {canEdit && (
+                  <button
+                    onClick={handleEditRequirement}
+                    className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                    title="상세 편집"
+                  >
+                    <Edit size={14} />
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -390,6 +412,15 @@ const RequirementRow: React.FC<Props> = ({
           requirementTitle={requirement.title}
         />
       )}
+
+      {/* 우선순위 변경 모달 */}
+      <PriorityChangeModal
+        isOpen={showPriorityModal}
+        onClose={() => setShowPriorityModal(false)}
+        currentPriority={requirement.priority}
+        onPriorityChange={handlePriorityChange}
+        requirementTitle={requirement.title}
+      />
     </div>
   );
 };

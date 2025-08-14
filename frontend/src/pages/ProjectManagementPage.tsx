@@ -433,7 +433,8 @@ const ProjectManagementPage: React.FC<Props> = ({ user }) => {
                 loadProjects();
               }}
               projectId={selectedProjectId!}
-              requirement={editingRequirement}
+              requirement={editingRequirement || undefined}
+              mode={editingRequirement ? 'edit' : 'create'}
             />
             
             {activeTab === 'details' && (
@@ -487,6 +488,7 @@ const ProjectManagementPage: React.FC<Props> = ({ user }) => {
         }}
         projectId={selectedProjectId!}
         parentNumber={requirementParentNumber}
+        mode="create"
       />
     </div>
   );
