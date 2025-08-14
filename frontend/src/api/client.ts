@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // API 기본 설정
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+  baseURL: (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000/api',
   timeout: 10_000,
   headers: {
     'Content-Type': 'application/json',
@@ -12,11 +12,11 @@ export const api = axios.create({
 // 요청 인터셉터 (인증 토큰 등을 여기서 처리)
 api.interceptors.request.use(
   (config) => {
-    // 여기서 인증 토큰을 추가할 수 있습니다
-    // const token = localStorage.getItem('authToken');
-    // if (token) {
-    //   config.headers.Authorization = `Bearer ${token}`;
-    // }
+    // 인증 토큰을 자동으로 헤더에 추가
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     
     console.log(`🚀 API Request: ${config.method?.toUpperCase()} ${config.url}`);
     return config;

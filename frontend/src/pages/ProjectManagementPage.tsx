@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, FileText, Settings, BarChart3, ChevronDown, Search, Eye, Grid, List } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { Plus, FileText, Settings, BarChart3, ChevronDown, Search, Eye, Grid, List, Edit } from 'lucide-react';
 import RequirementList from '../components/RequirementList';
 import ProjectForm from '../components/ProjectForm';
 import RequirementForm from '../components/RequirementForm';
+import ErrorBoundary from '../components/ErrorBoundary';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -35,6 +37,10 @@ interface Project {
   };
   createdAt: string;
   updatedAt: string;
+  effort: {
+    manMonths?: number;
+    manDays?: number;
+  }; // Update to match ProjectForm interface
 }
 
 interface Props {
@@ -48,6 +54,7 @@ interface Props {
 type TabType = 'requirements' | 'details' | 'reports';
 
 const ProjectManagementPage: React.FC<Props> = ({ user }) => {
+  const { t } = useTranslation();
   const { hasPermission } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [filteredProjects, setFilteredProjects] = useState<Project[]>([]);
@@ -61,7 +68,8 @@ const ProjectManagementPage: React.FC<Props> = ({ user }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [showProjectDetails, setShowProjectDetails] = useState(false);
-  const [requirementListKey, setRequirementListKey] = useState(0);
+  const [editingRequirement, setEditingRequirement] = useState<any | null>(null);
+  // Removed unused requirementListKey state
 
   const selectedProject = projects.find(p => p.id === selectedProjectId) || null;
   const canWrite = hasPermission('project.write');
@@ -85,11 +93,11 @@ const ProjectManagementPage: React.FC<Props> = ({ user }) => {
           setShowProjectDetails(false);
         }
       } else {
-        setError(response.data.message || '프로젝트를 불러오는데 실패했습니다.');
+        setError(response.data.message || t('project.loadFailed'));
       }
     } catch (err: any) {
       console.error('프로젝트 로드 실패:', err);
-      setError(err.response?.data?.message || '프로젝트를 불러오는데 실패했습니다.');
+      setError(err.response?.data?.message || t('project.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -156,7 +164,7 @@ const ProjectManagementPage: React.FC<Props> = ({ user }) => {
   };
 
   // 요구사항 추가 핸들러
-  const handleAddRequirement = (projectId: number, parentNumber?: string) => {
+  const handleAddRequirement = (_projectId: number, parentNumber?: string) => {
     setRequirementParentNumber(parentNumber);
     setShowRequirementForm(true);
   };
@@ -172,7 +180,7 @@ const ProjectManagementPage: React.FC<Props> = ({ user }) => {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <span className="ml-2 text-gray-600">프로젝트를 불러오는 중...</span>
+        <span className="ml-2 text-gray-600">{t('project.loading')}</span>
       </div>
     );
   }
@@ -182,14 +190,14 @@ const ProjectManagementPage: React.FC<Props> = ({ user }) => {
       <div className="bg-red-50 border border-red-200 rounded-lg p-6">
         <div className="flex items-center justify-between">
           <div className="text-red-800">
-            <h3 className="font-medium">오류 발생</h3>
+            <h3 className="font-medium">{t('form.errorOccurred')}</h3>
             <p className="text-sm mt-1">{error}</p>
           </div>
           <button
             onClick={loadProjects}
             className="px-4 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700"
           >
-            다시 시도
+            {t('form.retryLoad')}
           </button>
         </div>
       </div>
@@ -204,8 +212,8 @@ const ProjectManagementPage: React.FC<Props> = ({ user }) => {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">프로젝트 관리</h1>
-              <p className="text-gray-600 mt-1">프로젝트를 선택하여 요구사항을 관리하세요</p>
+              <h1 className="text-2xl font-bold text-gray-900">{t('form.projectManagement')}</h1>
+              <p className="text-gray-600 mt-1">{t('form.selectProjectToManage')}</p>
             </div>
             
             {canWrite && (
@@ -214,7 +222,7 @@ const ProjectManagementPage: React.FC<Props> = ({ user }) => {
                 className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 flex items-center"
               >
                 <Plus size={16} className="mr-2" />
-                새 프로젝트
+                {t('form.newProject')}
               </button>
             )}
           </div>
@@ -227,7 +235,7 @@ const ProjectManagementPage: React.FC<Props> = ({ user }) => {
               <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="프로젝트 이름, 설명, 담당자로 검색..."
+                placeholder={t('form.searchProjectsByNameDesc')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -235,18 +243,18 @@ const ProjectManagementPage: React.FC<Props> = ({ user }) => {
             </div>
             
             <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-600">보기:</span>
+              <span className="text-sm text-gray-600">{t('form.viewOptions')}</span>
               <button
                 onClick={() => setViewMode('list')}
                 className={`p-2 rounded ${viewMode === 'list' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
-                title="리스트 보기"
+                title={t('form.listView')}
               >
                 <List size={18} />
               </button>
               <button
                 onClick={() => setViewMode('grid')}
                 className={`p-2 rounded ${viewMode === 'grid' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
-                title="그리드 보기"
+                title={t('form.gridView')}
               >
                 <Grid size={18} />
               </button>
@@ -259,20 +267,20 @@ const ProjectManagementPage: React.FC<Props> = ({ user }) => {
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <span className="ml-2 text-gray-600">프로젝트를 불러오는 중...</span>
+              <span className="ml-2 text-gray-600">{t('project.loading')}</span>
             </div>
           ) : error ? (
             <div className="bg-red-50 border border-red-200 rounded-lg p-6">
               <div className="flex items-center justify-between">
                 <div className="text-red-800">
-                  <h3 className="font-medium">오류 발생</h3>
+                  <h3 className="font-medium">{t('form.errorOccurred')}</h3>
                   <p className="text-sm mt-1">{error}</p>
                 </div>
                 <button
                   onClick={loadProjects}
                   className="px-4 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700"
                 >
-                  다시 시도
+                  {t('form.retryLoad')}
                 </button>
               </div>
             </div>
@@ -280,12 +288,12 @@ const ProjectManagementPage: React.FC<Props> = ({ user }) => {
             <div className="text-center py-12">
               <FileText size={48} className="mx-auto text-gray-400 mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">
-                {projects.length === 0 ? '프로젝트가 없습니다' : '검색 결과가 없습니다'}
+                {projects.length === 0 ? t('form.noProjects') : t('form.noSearchResults')}
               </h3>
               <p className="text-gray-600 mb-4">
                 {projects.length === 0 
-                  ? '첫 번째 프로젝트를 생성하여 시작하세요.' 
-                  : '다른 검색어를 시도해보세요.'
+                  ? t('form.createFirstProjectMsg') 
+                  : t('form.tryDifferentSearch')
                 }
               </p>
               {canWrite && projects.length === 0 && (
@@ -293,16 +301,20 @@ const ProjectManagementPage: React.FC<Props> = ({ user }) => {
                   onClick={handleAddProject}
                   className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
                 >
-                  첫 프로젝트 생성하기
+                  {t('form.createFirstProject')}
                 </button>
               )}
             </div>
           ) : (
-            <ProjectGrid 
-              projects={filteredProjects} 
-              viewMode={viewMode}
-              onSelectProject={handleSelectProject}
-            />
+            <ErrorBoundary>
+              <ProjectGrid 
+                projects={filteredProjects || []} 
+                viewMode={viewMode}
+                onSelectProject={handleSelectProject}
+                canWrite={canWrite}
+                loadProjects={loadProjects}
+              />
+            </ErrorBoundary>
           )}
         </div>
 
@@ -326,7 +338,7 @@ const ProjectManagementPage: React.FC<Props> = ({ user }) => {
             <button
               onClick={handleBackToList}
               className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
-              title="프로젝트 목록으로 돌아가기"
+              title={t('form.backToProjectList')}
             >
               <ChevronDown size={20} className="rotate-90" />
             </button>
@@ -355,9 +367,9 @@ const ProjectManagementPage: React.FC<Props> = ({ user }) => {
               }`}
               disabled={!canWrite}
             >
-              <option value="진행중">진행중</option>
-              <option value="완료">완료</option>
-              <option value="보류">보류</option>
+              <option value="진행중">{t('status.inProgress')}</option>
+              <option value="완료">{t('status.completed')}</option>
+              <option value="보류">{t('status.onHold')}</option>
             </select>
           </div>
         </div>
@@ -383,8 +395,11 @@ const ProjectManagementPage: React.FC<Props> = ({ user }) => {
                     }`}
                   >
                     <Icon size={16} className="mr-2" />
-                    {tab.label}
-                    {tab.count !== undefined && (
+                    {tab.id === 'requirements' ? t('project.requirements') : 
+                     tab.id === 'details' ? t('form.projectDetails') : 
+                     t('form.reports')}
+
+                    {'count' in tab && tab.count !== undefined && (
                       <span className="ml-2 bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-xs">
                         {tab.count}
                       </span>
@@ -403,18 +418,31 @@ const ProjectManagementPage: React.FC<Props> = ({ user }) => {
                 userRole={user.role}
                 onAddRequirement={handleAddRequirement}
                 onEditRequirement={(requirement) => {
-                  // TODO: 요구사항 편집 모달 구현
-                  console.log('Edit requirement:', requirement);
+                  // 요구사항 편집 모달 구현
+                  setEditingRequirement(requirement);
                 }}
               />
             )}
+            
+            {/* 요구사항 편집 모달 */}
+            <RequirementForm
+              isOpen={!!editingRequirement}
+              onClose={() => setEditingRequirement(null)}
+              onSuccess={() => {
+                setEditingRequirement(null);
+                loadProjects();
+              }}
+              projectId={selectedProjectId!}
+              requirement={editingRequirement || undefined}
+              mode={editingRequirement ? 'edit' : 'create'}
+            />
             
             {activeTab === 'details' && (
               <ProjectDetailsTab project={selectedProject} canEdit={canWrite} />
             )}
             
             {activeTab === 'reports' && (
-              <ProjectReportsTab project={selectedProject} />
+              <ProjectReportsTab />
             )}
           </div>
         </>
@@ -424,14 +452,14 @@ const ProjectManagementPage: React.FC<Props> = ({ user }) => {
       {!selectedProject && projects.length === 0 && (
         <div className="text-center py-12">
           <FileText size={48} className="mx-auto text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">프로젝트가 없습니다</h3>
-          <p className="text-gray-600 mb-4">첫 번째 프로젝트를 생성하여 시작하세요.</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">{t('form.noProjects')}</h3>
+          <p className="text-gray-600 mb-4">{t('form.createFirstProjectMsg')}</p>
           {canWrite && (
             <button
               onClick={handleAddProject}
               className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
             >
-              프로젝트 생성하기
+              {t('project.addProject')}
             </button>
           )}
         </div>
@@ -455,11 +483,12 @@ const ProjectManagementPage: React.FC<Props> = ({ user }) => {
           // 요구사항 추가 성공 후 폼을 닫고 목록을 새로고침
           setShowRequirementForm(false);
           setRequirementParentNumber(undefined);
-          // RequirementList 새로고침을 위해 key를 변경
-          setRequirementListKey(prev => prev + 1);
+          // 요구사항 목록 새로고침
+          loadProjects();
         }}
         projectId={selectedProjectId!}
         parentNumber={requirementParentNumber}
+        mode="create"
       />
     </div>
   );
@@ -467,14 +496,16 @@ const ProjectManagementPage: React.FC<Props> = ({ user }) => {
 
 // 프로젝트 상세 탭 컴포넌트
 const ProjectDetailsTab: React.FC<{ project: Project; canEdit: boolean }> = ({ project, canEdit }) => {
+  // Use the translation hook from react-i18next
+  const { t } = useTranslation();
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <h3 className="text-lg font-medium text-gray-900 mb-6">프로젝트 상세 정보</h3>
+      <h3 className="text-lg font-medium text-gray-900 mb-6">{t('form.projectDetailInfo')}</h3>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Front-end 개발 */}
         <div className="space-y-4">
-          <h4 className="font-medium text-gray-900">Front-end 개발</h4>
+          <h4 className="font-medium text-gray-900">{t('form.frontendDevelopment')}</h4>
           <div className="flex items-center space-x-3">
             <input
               type="checkbox"
@@ -482,7 +513,7 @@ const ProjectDetailsTab: React.FC<{ project: Project; canEdit: boolean }> = ({ p
               disabled={!canEdit}
               className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
             />
-            <span className="text-sm text-gray-700">Front-end 개발 여부</span>
+            <span className="text-sm text-gray-700">{t('form.frontendEnabled')}</span>
           </div>
           {project.details.frontend.description && (
             <p className="text-sm text-gray-600 pl-7">{project.details.frontend.description}</p>
@@ -491,7 +522,7 @@ const ProjectDetailsTab: React.FC<{ project: Project; canEdit: boolean }> = ({ p
 
         {/* Back-end 개발 */}
         <div className="space-y-4">
-          <h4 className="font-medium text-gray-900">Back-end 개발</h4>
+          <h4 className="font-medium text-gray-900">{t('form.backendDevelopment')}</h4>
           <div className="flex items-center space-x-3">
             <input
               type="checkbox"
@@ -499,7 +530,7 @@ const ProjectDetailsTab: React.FC<{ project: Project; canEdit: boolean }> = ({ p
               disabled={!canEdit}
               className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
             />
-            <span className="text-sm text-gray-700">Back-end 개발 여부</span>
+            <span className="text-sm text-gray-700">{t('form.backendEnabled')}</span>
           </div>
           {project.details.backend.description && (
             <p className="text-sm text-gray-600 pl-7">{project.details.backend.description}</p>
@@ -508,7 +539,7 @@ const ProjectDetailsTab: React.FC<{ project: Project; canEdit: boolean }> = ({ p
 
         {/* 플랫폼 */}
         <div className="space-y-2">
-          <h4 className="font-medium text-gray-900">플랫폼</h4>
+          <h4 className="font-medium text-gray-900">{t('form.platformLabel')}</h4>
           <div className="flex flex-wrap gap-2">
             {project.details.platform.length > 0 ? (
               project.details.platform.map((platform, index) => (
@@ -520,14 +551,14 @@ const ProjectDetailsTab: React.FC<{ project: Project; canEdit: boolean }> = ({ p
                 </span>
               ))
             ) : (
-              <span className="text-sm text-gray-500">설정되지 않음</span>
+              <span className="text-sm text-gray-500">{t('form.notConfigured')}</span>
             )}
           </div>
         </div>
 
         {/* IDE 도구 */}
         <div className="space-y-2">
-          <h4 className="font-medium text-gray-900">IDE 도구</h4>
+          <h4 className="font-medium text-gray-900">{t('form.ideToolsLabel')}</h4>
           <div className="flex flex-wrap gap-2">
             {project.details.ideTools.length > 0 ? (
               project.details.ideTools.map((tool, index) => (
@@ -539,7 +570,7 @@ const ProjectDetailsTab: React.FC<{ project: Project; canEdit: boolean }> = ({ p
                 </span>
               ))
             ) : (
-              <span className="text-sm text-gray-500">설정되지 않음</span>
+              <span className="text-sm text-gray-500">{t('form.notConfigured')}</span>
             )}
           </div>
         </div>
@@ -554,13 +585,13 @@ const ProjectDetailsTab: React.FC<{ project: Project; canEdit: boolean }> = ({ p
             disabled={!canEdit}
             className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
           />
-          <span className="font-medium text-gray-900">기획서 작성 여부</span>
+          <span className="font-medium text-gray-900">{t('form.hasSpecificationLabel')}</span>
         </div>
       </div>
 
       {/* 화면명 */}
       <div className="mt-6">
-        <h4 className="font-medium text-gray-900 mb-2">관련 화면</h4>
+        <h4 className="font-medium text-gray-900 mb-2">{t('form.relatedScreens')}</h4>
         <div className="flex flex-wrap gap-2">
           {project.details.screenNames.length > 0 ? (
             project.details.screenNames.map((screen, index) => (
@@ -572,7 +603,7 @@ const ProjectDetailsTab: React.FC<{ project: Project; canEdit: boolean }> = ({ p
               </span>
             ))
           ) : (
-            <span className="text-sm text-gray-500">등록된 화면이 없습니다</span>
+            <span className="text-sm text-gray-500">{t('form.noRegisteredScreens')}</span>
           )}
         </div>
       </div>
@@ -580,7 +611,7 @@ const ProjectDetailsTab: React.FC<{ project: Project; canEdit: boolean }> = ({ p
       {canEdit && (
         <div className="mt-6 pt-6 border-t border-gray-100">
           <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700">
-            상세 정보 편집
+            {t('form.editDetailInfo')}
           </button>
         </div>
       )}
@@ -589,23 +620,24 @@ const ProjectDetailsTab: React.FC<{ project: Project; canEdit: boolean }> = ({ p
 };
 
 // 프로젝트 보고서 탭 컴포넌트
-const ProjectReportsTab: React.FC<{ project: Project }> = ({ project }) => {
+const ProjectReportsTab: React.FC = () => {
+  const { t } = useTranslation();
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <h3 className="text-lg font-medium text-gray-900 mb-4">프로젝트 보고서</h3>
-      <p className="text-gray-600">프로젝트별 보고서 기능이 구현될 예정입니다.</p>
+      <h3 className="text-lg font-medium text-gray-900 mb-4">{t('form.projectReports')}</h3>
+      <p className="text-gray-600">{t('form.projectReportFeatureComingSoon')}</p>
     </div>
   );
 };
-
-// 프로젝트 그리드/리스트 컴포넌트
 interface ProjectGridProps {
   projects: Project[];
   viewMode: 'list' | 'grid';
   onSelectProject: (projectId: number) => void;
+  canWrite: boolean;
+  loadProjects: () => void;
 }
-
-const ProjectGrid: React.FC<ProjectGridProps> = ({ projects, viewMode, onSelectProject }) => {
+const ProjectGrid: React.FC<ProjectGridProps> = ({ projects = [], viewMode, onSelectProject, canWrite, loadProjects }) => {
+  const { t } = useTranslation();
   const formatDate = (dateString: string) => {
     try {
       return new Date(dateString).toLocaleDateString('ko-KR', {
@@ -618,14 +650,27 @@ const ProjectGrid: React.FC<ProjectGridProps> = ({ projects, viewMode, onSelectP
     }
   };
 
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+
+  function onEditProject(project: Project): void {
+    setEditingProject(project);
+  }
+
   if (viewMode === 'grid') {
+    // 프로젝트 상세 페이지로 이동하는 함수
+    function onNavigateToProject(path: string, id: number) {
+      // 예시: React Router를 사용하는 경우
+      // window.location.href = `${path}?id=${id}`;
+      // 또는 navigate(`${path}?id=${id}`);
+      // 여기서는 새 창으로 이동하도록 구현
+      window.open(`${path}?id=${id}`, '_blank');
+    }
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {projects.map((project) => (
+        {Array.isArray(projects) && projects.map((project) => (
           <div
             key={project.id}
-            className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
-            onClick={() => onSelectProject(project.id)}
+            className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
           >
             <div className="flex items-start justify-between mb-4">
               <h3 className="text-lg font-medium text-gray-900 flex-1">{project.name}</h3>
@@ -663,10 +708,31 @@ const ProjectGrid: React.FC<ProjectGridProps> = ({ projects, viewMode, onSelectP
                     <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">Backend</span>
                   )}
                 </div>
-                <button className="text-blue-600 hover:text-blue-800 font-medium flex items-center">
-                  <Eye size={14} className="mr-1" />
-                  보기
-                </button>
+                <div className="flex items-center space-x-2">
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectProject(project.id);
+                    }}
+                    className="text-blue-600 hover:text-blue-800 font-medium flex items-center text-sm"
+                  >
+                    <Eye size={14} className="mr-1" />
+                    {t('form.viewDetails')}
+                  </button>
+                  
+                  {onNavigateToProject && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onNavigateToProject('/project-detail', project.id);
+                      }}
+                      className="text-green-600 hover:text-green-800 font-medium flex items-center text-sm"
+                    >
+                      <BarChart3 size={14} className="mr-1" />
+                      {t('form.progress')}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -677,67 +743,92 @@ const ProjectGrid: React.FC<ProjectGridProps> = ({ projects, viewMode, onSelectP
 
   // 리스트 뷰
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-      <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-gray-50 text-sm font-medium text-gray-700 border-b border-gray-200">
-        <div className="col-span-4">프로젝트명</div>
-        <div className="col-span-2">상태</div>
-        <div className="col-span-2">요구자</div>
-        <div className="col-span-2">생성일</div>
-        <div className="col-span-2">작업</div>
-      </div>
-      
-      {projects.map((project) => (
-        <div
-          key={project.id}
-          className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
-        >
-          <div className="col-span-4">
-            <div>
-              <h3 className="font-medium text-gray-900">{project.name}</h3>
-              {project.description && (
-                <p className="text-sm text-gray-600 mt-1 line-clamp-1">{project.description}</p>
-              )}
-              <div className="flex items-center space-x-2 mt-2">
-                {project.details.frontend.enabled && (
-                  <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">Frontend</span>
+    <>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-gray-50 text-sm font-medium text-gray-700 border-b border-gray-200">
+          <div className="col-span-4">{t('form.projectName')}</div>
+          <div className="col-span-2">{t('form.statusColumn')}</div>
+          <div className="col-span-2">{t('form.requesterColumn')}</div>
+          <div className="col-span-2">{t('form.createdAtColumn')}</div>
+          <div className="col-span-2">{t('form.actionColumn')}</div>
+        </div>
+        
+        {Array.isArray(projects) && projects.map((project) => (
+          <div
+            key={project.id}
+            className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
+          >
+            <div className="col-span-4">
+              <div>
+                <h3 className="font-medium text-gray-900">{project.name}</h3>
+                {project.description && (
+                  <p className="text-sm text-gray-600 mt-1 line-clamp-1">{project.description}</p>
                 )}
-                {project.details.backend.enabled && (
-                  <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded text-xs">Backend</span>
-                )}
+                <div className="flex items-center space-x-2 mt-2">
+                  {project.details.frontend.enabled && (
+                    <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">Frontend</span>
+                  )}
+                  {project.details.backend.enabled && (
+                    <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded text-xs">Backend</span>
+                  )}
+                </div>
               </div>
             </div>
+            
+            <div className="col-span-2 flex items-center">
+              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                project.status === '진행중' ? 'bg-blue-100 text-blue-800' :
+                project.status === '완료' ? 'bg-green-100 text-green-800' :
+                'bg-gray-100 text-gray-800'
+              }`}>
+                {project.status}
+              </span>
+            </div>
+            
+            <div className="col-span-2 flex items-center text-sm text-gray-600">
+              {project.requester}
+            </div>
+            
+            <div className="col-span-2 flex items-center text-sm text-gray-600">
+              {formatDate(project.createdAt)}
+            </div>
+            
+            <div className="col-span-2 flex items-center space-x-2">
+              <button
+                onClick={() => onSelectProject(project.id)}
+                className="px-3 py-1 text-sm text-blue-600 hover:text-blue-800 font-medium border border-blue-200 rounded hover:bg-blue-50 transition-colors flex items-center"
+              >
+                <Eye size={14} className="mr-1" />
+                상세보기
+              </button>
+              
+              {/* 진척도 버튼 제거 또는 필요시 구현 */}
+              
+              {canWrite && (
+                <button
+                  onClick={() => onEditProject(project)}
+                  className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded transition-colors"
+                  title={t('form.editProject')}
+                >
+                  <Edit size={16} />
+                </button>
+              )}
+            </div>
           </div>
-          
-          <div className="col-span-2 flex items-center">
-            <span className={`px-2 py-1 rounded text-xs font-medium ${
-              project.status === '진행중' ? 'bg-blue-100 text-blue-800' :
-              project.status === '완료' ? 'bg-green-100 text-green-800' :
-              'bg-gray-100 text-gray-800'
-            }`}>
-              {project.status}
-            </span>
-          </div>
-          
-          <div className="col-span-2 flex items-center text-sm text-gray-600">
-            {project.requester}
-          </div>
-          
-          <div className="col-span-2 flex items-center text-sm text-gray-600">
-            {formatDate(project.createdAt)}
-          </div>
-          
-          <div className="col-span-2 flex items-center">
-            <button
-              onClick={() => onSelectProject(project.id)}
-              className="px-3 py-1 text-sm text-blue-600 hover:text-blue-800 font-medium border border-blue-200 rounded hover:bg-blue-50 transition-colors flex items-center"
-            >
-              <Eye size={14} className="mr-1" />
-              상세보기
-            </button>
-          </div>
-        </div>
-      ))}
-    </div>
+        ))}              
+      </div>
+      {/* 프로젝트 편집 모달 */}
+      <ProjectForm
+        isOpen={!!editingProject}
+        onClose={() => setEditingProject(null)}
+        onSuccess={() => {
+          setEditingProject(null);
+          loadProjects();
+        }}
+        project={editingProject ?? undefined}
+        mode="edit"
+      />
+    </>
   );
 };
 

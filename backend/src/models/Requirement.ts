@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { RequirementHistory } from './RequirementHistory';
 
 export interface IRequirement extends Document {
   id: number;
@@ -6,7 +7,7 @@ export interface IRequirement extends Document {
   number: string; // "1.0", "1.1", "1.1.1"
   title: string;
   description?: string;
-  status: '요청' | '검토중' | '진행중' | '완료' | '보류' | '취소';
+  status: string; // 커스텀 상태값을 지원하기 위해 string으로 변경
   priority: '높음' | '보통' | '낮음';
   requester?: string;
   requestDate?: Date;
@@ -19,6 +20,8 @@ export interface IRequirement extends Document {
   level: number; // 트리 레벨 (0: 루트, 1: 1단계 하위, 2: 2단계 하위...)
   sortOrder: number; // 같은 레벨 내에서의 정렬 순서
   isExpanded: boolean; // UI에서 펼침/접힘 상태
+  progress?: number; // 진척도 (0-100)
+  completionDate?: Date; // 요구사항 완료일
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,7 +34,6 @@ const requirementSchema = new Schema<IRequirement>({
   description: { type: String, default: '' },
   status: { 
     type: String, 
-    enum: ['요청', '검토중', '진행중', '완료', '보류', '취소'], 
     default: '요청' 
   },
   priority: { 
@@ -49,21 +51,93 @@ const requirementSchema = new Schema<IRequirement>({
   parentNumber: { type: String, default: null },
   level: { type: Number, default: 0 },
   sortOrder: { type: Number, default: 0 },
-  isExpanded: { type: Boolean, default: true }
+  isExpanded: { type: Boolean, default: true },
+  progress: { type: Number, default: 0, min: 0, max: 100 }, // 진척도 (0-100)
+  completionDate: { type: Date } // 요구사항 완료일
 }, {
   timestamps: true
 });
 
-// 요구사항 ID 자동 증가를 위한 미들웨어
+// 요구사항 변경 사항을 히스토리에 기록하는 미들웨어
 requirementSchema.pre('save', async function(next) {
   try {
-    if (this.isNew && (this.id === undefined || this.id === null)) {
-      const lastRequirement = await mongoose.connection.collection('requirements').findOne({}, { sort: { id: -1 } });
-      this.id = lastRequirement ? (lastRequirement.id + 1) : 1;
-      console.log('Generated new requirement ID:', this.id);
+    if (this.isNew) {
+      // 새로운 요구사항인 경우 ID 생성
+      if (this.id === undefined || this.id === null) {
+        const lastRequirement = await mongoose.connection.collection('requirements').findOne({}, { sort: { id: -1 } });
+        this.id = lastRequirement ? (lastRequirement.id + 1) : 1;
+        console.log('Generated new requirement ID:', this.id);
+      }
+      
+      // 생성 히스토리 기록
+      await new RequirementHistory({
+        requirementId: this.id,
+        projectId: this.projectId,
+        changeType: 'created',
+        newValue: this.title,
+        changedBy: this.requester || 'System',
+        changeReason: '요구사항 생성'
+      }).save();
+    } else {
+      // 기존 요구사항 수정인 경우 변경 사항 추적
+      const original = await this.constructor.findById(this._id);
+      if (original) {
+        const changes = [];
+        
+        if (original.status !== this.status) {
+          changes.push({
+            changeType: 'status_changed',
+            fieldName: 'status',
+            oldValue: original.status,
+            newValue: this.status
+          });
+        }
+        
+        if (original.title !== this.title) {
+          changes.push({
+            changeType: 'title_changed',
+            fieldName: 'title',
+            oldValue: original.title,
+            newValue: this.title
+          });
+        }
+        
+        if (original.description !== this.description) {
+          changes.push({
+            changeType: 'description_changed',
+            fieldName: 'description',
+            oldValue: original.description,
+            newValue: this.description
+          });
+        }
+        
+        if (original.priority !== this.priority) {
+          changes.push({
+            changeType: 'priority_changed',
+            fieldName: 'priority',
+            oldValue: original.priority,
+            newValue: this.priority
+          });
+        }
+        
+        // 변경사항이 있으면 히스토리에 기록
+        for (const change of changes) {
+          await new RequirementHistory({
+            requirementId: this.id,
+            projectId: this.projectId,
+            changeType: change.changeType,
+            fieldName: change.fieldName,
+            oldValue: change.oldValue,
+            newValue: change.newValue,
+            changedBy: this.modifier || 'System',
+            changeReason: '요구사항 수정'
+          }).save();
+        }
+      }
     }
+    
     next();
-  } catch (error) {
+  } catch (error: any) {
     console.error('Pre-save middleware error:', error);
     next(error);
   }

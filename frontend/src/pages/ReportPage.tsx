@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { 
   Download, 
   FileText, 
@@ -10,6 +11,7 @@ import {
   Share2,
   RefreshCw
 } from 'lucide-react';
+import axios from 'axios';
 
 interface ReportFilters {
   projectId?: string;
@@ -98,6 +100,7 @@ const mockReportData: ReportData = {
 };
 
 const ReportPage: React.FC = () => {
+  const { t } = useTranslation();
   const [reportType, setReportType] = useState<'summary' | 'detailed' | 'export'>('summary');
   const [filters, setFilters] = useState<ReportFilters>({
     dateRange: {
@@ -107,9 +110,113 @@ const ReportPage: React.FC = () => {
     status: [],
     category: []
   });
-  const [reportData] = useState<ReportData>(mockReportData);
+  const [reportData, setReportData] = useState<ReportData>(mockReportData);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [loading, setLoading] = useState(true);
   const printRef = useRef<HTMLDivElement>(null);
+
+  // 실제 데이터 로드
+  useEffect(() => {
+    loadReportData();
+  }, []);
+
+  const loadReportData = async () => {
+    try {
+      setLoading(true);
+      
+      // 프로젝트 목록 가져오기
+      const projectsResponse = await axios.get('/api/projects');
+      if (projectsResponse.data.success) {
+        const projects = projectsResponse.data.data.projects || [];
+        
+        // 각 프로젝트의 요구사항 통계 계산
+        let totalRequirements = 0;
+        let totalCompleted = 0;
+        let totalInProgress = 0;
+        let totalPending = 0;
+        
+        const projectStats = [];
+        
+        for (const project of projects) {
+          try {
+            const reqResponse = await axios.get(`/api/requirements/project/${project.id}`);
+            if (reqResponse.data.success) {
+              const requirements = reqResponse.data.data.requirements || [];
+              const flatRequirements = flattenRequirements(requirements);
+              
+              const completed = flatRequirements.filter(req => req.status === '완료').length;
+              const inProgress = flatRequirements.filter(req => req.status === '진행중').length;
+              const pending = flatRequirements.filter(req => req.status === '요청').length;
+              
+              totalRequirements += flatRequirements.length;
+              totalCompleted += completed;
+              totalInProgress += inProgress;
+              totalPending += pending;
+              
+              projectStats.push({
+                projectName: project.name,
+                totalRequirements: flatRequirements.length,
+                completed,
+                inProgress,
+                pending,
+                completionRate: flatRequirements.length > 0 ? (completed / flatRequirements.length) * 100 : 0
+              });
+            }
+          } catch (err) {
+            console.error('요구사항 로드 실패:', err);
+          }
+        }
+        
+        // 카테고리별 통계 (기본값 사용)
+        const categoryStats = [
+          { 
+            category: '기능적 요구사항', 
+            count: Math.floor(totalRequirements * 0.6), 
+            percentage: 60 
+          },
+          { 
+            category: '비기능적 요구사항', 
+            count: Math.floor(totalRequirements * 0.25), 
+            percentage: 25 
+          },
+          { 
+            category: '시스템 요구사항', 
+            count: Math.floor(totalRequirements * 0.15), 
+            percentage: 15 
+          }
+        ];
+        
+        setReportData({
+          summary: {
+            totalProjects: projects.length,
+            totalRequirements,
+            completedRequirements: totalCompleted,
+            inProgressRequirements: totalInProgress,
+            pendingRequirements: totalPending
+          },
+          projectStats,
+          categoryStats,
+          timelineData: mockReportData.timelineData // 타임라인은 mock 데이터 사용
+        });
+      }
+    } catch (err) {
+      console.error('보고서 데이터 로드 실패:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 요구사항 트리를 평면화하는 함수
+  const flattenRequirements = (reqs: any[]): any[] => {
+    const result: any[] = [];
+    reqs.forEach(req => {
+      result.push(req);
+      if (req.children) {
+        result.push(...flattenRequirements(req.children));
+      }
+    });
+    return result;
+  };
 
   const handleGenerateReport = async () => {
     setIsGenerating(true);
@@ -144,10 +251,20 @@ const ReportPage: React.FC = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <span className="ml-2 text-gray-600">보고서 데이터를 불러오는 중...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">보고서</h1>
         <p className="text-gray-600">프로젝트 진행 상황과 요구사항 통계를 확인할 수 있습니다.</p>
       </div>
 

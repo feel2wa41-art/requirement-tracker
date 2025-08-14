@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import Sidebar from './Sidebar';
+import LanguageSwitcher from './LanguageSwitcher';
 import { Menu, X } from 'lucide-react';
 
 interface LayoutProps {
@@ -10,6 +12,7 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children, currentPath, onNavigate }) => {
+  const { t } = useTranslation();
   const { user, logout } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -66,17 +69,18 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPath, onNavigate }) =>
               )}
             </button>
             <h1 className="text-lg font-semibold text-gray-900">
-              요구사항 추적 시스템
+              {t('common.requirementTracker', '요구사항 추적 시스템')}
             </h1>
-            <div className="w-10"></div> {/* 균형을 위한 빈 공간 */}
+            <LanguageSwitcher />
           </div>
         </header>
 
         {/* 페이지 제목 (데스크톱) */}
-        <div className="hidden lg:block bg-white border-b border-gray-200 px-6 py-4">
+        <div className="hidden lg:flex bg-white border-b border-gray-200 px-6 py-4 justify-between items-center">
           <h1 className="text-2xl font-semibold text-gray-900">
-            {getPageTitle(currentPath)}
+            {getPageTitle(currentPath, t)}
           </h1>
+          <LanguageSwitcher />
         </div>
 
         {/* 메인 콘텐츠 영역 */}
@@ -88,20 +92,16 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPath, onNavigate }) =>
   );
 };
 
-const getPageTitle = (path: string): string => {
+const getPageTitle = (path: string, t: any): string => {
   const titles: { [key: string]: string } = {
-    '/dashboard': '대시보드',
-    '/projects': '프로젝트 관리',
-    '/projects/create': '프로젝트 생성',
-    '/reports/requirements': '요구사항 보고서',
-    '/reports/status': '프로젝트 상태 보고서',
-    '/reports/export': '보고서 내보내기',
-    '/admin/users': '사용자 관리',
-    '/admin/access': '접속 권한 설정',
-    '/admin/settings': '시스템 설정'
+    '/dashboard': t('navigation.dashboard'),
+    '/projects': t('navigation.projects'),
+    '/reports': t('report.title'),
+    '/admin/access': t('admin.accessControl'),
+    '/admin/settings': t('admin.systemSettings')
   };
   
-  return titles[path] || '요구사항 추적 시스템';
+  return titles[path] || t('common.requirementTracker', '요구사항 추적 시스템');
 };
 
 export default Layout;
